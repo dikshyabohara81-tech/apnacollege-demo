@@ -1,0 +1,291 @@
+import math
+import random
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse, PathPatch, Polygon
+from matplotlib.path import Path
+
+
+random.seed(12)
+
+
+def blend_colors(color_a, color_b, amount):
+    """Blend two hex colors for a soft, painted appearance."""
+    a = np.array([int(color_a[i:i + 2], 16) for i in (1, 3, 5)])
+    b = np.array([int(color_b[i:i + 2], 16) for i in (1, 3, 5)])
+    rgb = (a * (1 - amount) + b * amount).astype(int)
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+
+def curved_polygon(cx, cy, base_width, height, angle, color, edge=None, alpha=1.0, z=10):
+    """Create an organic pointed petal or leaf from a Bezier path."""
+    local = [
+        (0, -height * 0.50),
+        (base_width * 0.48, -height * 0.32),
+        (base_width * 0.58, height * 0.16),
+        (0, height * 0.50),
+        (-base_width * 0.58, height * 0.16),
+        (-base_width * 0.48, -height * 0.32),
+        (0, -height * 0.50),
+    ]
+    codes = [
+        Path.MOVETO,
+        Path.CURVE3,
+        Path.CURVE3,
+        Path.CURVE3,
+        Path.CURVE3,
+        Path.CURVE3,
+        Path.CURVE3,
+    ]
+
+    theta = math.radians(angle)
+    vertices = []
+    for x, y in local:
+        rx = x * math.cos(theta) - y * math.sin(theta)
+        ry = x * math.sin(theta) + y * math.cos(theta)
+        vertices.append((cx + rx, cy + ry))
+
+    patch = PathPatch(
+        Path(vertices, codes),
+        facecolor=color,
+        edgecolor=edge or color,
+        linewidth=0.7,
+        alpha=alpha,
+        zorder=z,
+    )
+    ax.add_patch(patch)
+    return patch
+
+
+def stem(start, end, width=2.0, z=3):
+    cx = (start[0] + end[0]) / 2
+    cy = (start[1] + end[1]) / 2
+    ax.plot(
+        [start[0], cx, end[0]],
+        [start[1], cy - 0.12, end[1]],
+        color="#4e6b4a",
+        linewidth=width,
+        solid_capstyle="round",
+        zorder=z,
+    )
+    ax.plot(
+        [start[0] - width * 0.025, cx - width * 0.025, end[0] - width * 0.025],
+        [start[1], cy - 0.12, end[1]],
+        color="#718667",
+        linewidth=max(width * 0.28, 0.5),
+        alpha=0.75,
+        zorder=z + 0.1,
+    )
+
+
+def real_leaf(cx, cy, width, height, angle, tone="#668159", z=5):
+    curved_polygon(cx, cy, width, height, angle, tone, "#55704f", 0.96, z)
+    theta = math.radians(angle)
+    ux, uy = math.sin(theta), math.cos(theta)
+    ax.plot(
+        [cx - ux * height * 0.38, cx + ux * height * 0.38],
+        [cy - uy * height * 0.38, cy + uy * height * 0.38],
+        color="#b2c2a1",
+        linewidth=0.65,
+        alpha=0.75,
+        zorder=z + 1,
+    )
+
+
+def baby_breath(cx, cy, size=1.0, z=14):
+    for dx, dy in [(-0.10, 0), (0.10, 0), (0, 0.12),
+                    (-0.06, -0.10), (0.07, -0.09)]:
+        x = cx + dx * size
+        y = cy + dy * size
+        ax.scatter([x], [y], s=34 * size, color="#fffaf4",
+                   edgecolor="#ded7c8", linewidth=0.35, zorder=z)
+        ax.scatter([x], [y], s=5 * size, color="#d7bd74",
+                   zorder=z + 1)
+
+
+def rose(cx, cy, radius, palette, z=20):
+    # Shadow immediately beneath the flower gives it believable depth.
+    ax.add_patch(Ellipse(
+        (cx - radius * 0.04, cy - radius * 0.10),
+        radius * 1.35, radius * 0.88,
+        facecolor="#74544e", edgecolor="none", alpha=0.10, zorder=z - 1,
+    ))
+
+    ring_counts = (10, 9, 7)
+    ring_radius = (0.76, 0.52, 0.32)
+    ring_width = (0.72, 0.58, 0.42)
+    ring_height = (0.50, 0.38, 0.29)
+
+    for ring, (count, distance, width, height) in enumerate(zip(
+            ring_counts, ring_radius, ring_width, ring_height)):
+        for i in range(count):
+            angle = 360 * i / count + ring * 17
+            theta = math.radians(angle)
+            x = cx + math.cos(theta) * radius * distance
+            y = cy + math.sin(theta) * radius * distance
+            mix = 0.12 * ring + 0.04 * (i % 3)
+            color = blend_colors(palette[0], palette[1], mix)
+            curved_polygon(
+                x, y, radius * width, radius * height,
+                angle - 90 + random.randint(-7, 7),
+                color, palette[2], 0.94,
+                z + ring * 2,
+            )
+
+    for i in range(5):
+        angle = i * 72 + 15
+        theta = math.radians(angle)
+        x = cx + math.cos(theta) * radius * 0.10
+        y = cy + math.sin(theta) * radius * 0.10
+        curved_polygon(
+            x, y, radius * 0.27, radius * 0.22,
+            angle - 90, palette[1], palette[2], 0.98,
+            z + 9,
+        )
+    ax.add_patch(Ellipse(
+        (cx, cy), radius * 0.25, radius * 0.20,
+        facecolor=palette[2], edgecolor="#a64d60",
+        linewidth=0.8, zorder=z + 12,
+    ))
+
+
+def lily(cx, cy, radius, z=24):
+    petals = [
+        ("#fffaf2", "#ead6d0"),
+        ("#fdf1e9", "#dcbab6"),
+        ("#fff5ef", "#ead8d1"),
+        ("#f9eee7", "#debdb7"),
+        ("#fffaf3", "#e6d1c8"),
+        ("#fbf2e8", "#dabbb4"),
+    ]
+    for i, (face, edge) in enumerate(petals):
+        angle = i * 60
+        theta = math.radians(angle)
+        px = cx + math.cos(theta) * radius * 0.26
+        py = cy + math.sin(theta) * radius * 0.26
+        curved_polygon(
+            px, py, radius * 0.58, radius * 1.15,
+            angle - 90, face, edge, 0.98, z,
+        )
+
+    ax.scatter([cx], [cy], s=radius * 28, color="#ba9261",
+               edgecolor="#a27b50", linewidth=0.5, zorder=z + 8)
+    for i in range(6):
+        theta = math.radians(i * 60)
+        px = cx + math.cos(theta) * radius * 0.48
+        py = cy + math.sin(theta) * radius * 0.48
+        ax.plot([cx, px], [cy, py], color="#9d7d45",
+                linewidth=1.0, zorder=z + 7)
+        ax.scatter([px], [py], s=radius * 10, color="#d3a74f",
+                   edgecolor="#a47a37", linewidth=0.35, zorder=z + 9)
+
+
+fig, ax = plt.subplots(figsize=(9, 11), dpi=150)
+fig.patch.set_facecolor("#f6efe6")
+ax.set_facecolor("#f6efe6")
+ax.set_xlim(-5.2, 5.2)
+ax.set_ylim(-6.1, 6.1)
+ax.set_aspect("equal")
+ax.axis("off")
+
+# Quiet paper-like glow.
+for radius, alpha in [(5.8, 0.018), (5.2, 0.012), (4.7, 0.010)]:
+    glow = Ellipse((0, 0.2), radius * 2, radius * 2,
+                   facecolor="#cbb49c", edgecolor="none", alpha=alpha, zorder=-10)
+    ax.add_patch(glow)
+
+ax.text(0, 5.45, "FLOWERS FOR YOU",
+        ha="center", va="center", fontsize=26, family="serif",
+        style="italic", color="#9c6170")
+
+# Add stems before foliage and blooms, as in a real bouquet.
+flower_positions = [
+    (-2.55, 2.20), (-1.38, 3.05), (0.05, 3.48),
+    (1.48, 2.95), (2.48, 2.12), (0.25, 2.30),
+]
+for x, y in flower_positions:
+    stem((x * 0.18, -2.55), (x, y), 2.3)
+
+# Layered foliage.
+real_leaf(-2.12, -0.82, 1.28, 2.05, -48, "#5f7955")
+real_leaf(2.05, -0.75, 1.32, 2.10, 48, "#667e58")
+real_leaf(-1.08, -1.38, 1.05, 1.78, -58, "#71855f")
+real_leaf(1.10, -1.30, 1.10, 1.85, 58, "#6b8058")
+real_leaf(-0.10, -1.05, 1.15, 1.95, 78, "#7b8f65")
+real_leaf(-2.85, 0.02, 0.75, 1.48, -32, "#7b8969")
+real_leaf(2.78, 0.12, 0.78, 1.48, 34, "#74845f")
+
+# Baby's breath branches.
+for cx, cy in [
+    (-3.15, 2.75), (-2.05, 3.55), (-0.45, 4.32),
+    (1.05, 4.10), (2.95, 2.75), (3.15, 1.72),
+    (-1.72, 1.50), (1.82, 1.68), (0.02, 1.38),
+]:
+    baby_breath(cx, cy, 1.0)
+
+# Flowers with varied scale and palette.
+rose(-2.55, 2.20, 0.92,
+     ("#df8e9f", "#edbcc4", "#bb6478"))
+rose(-1.38, 3.05, 0.96,
+     ("#f0aab4", "#f8d2d3", "#c87585"))
+lily(0.05, 3.48, 1.12)
+rose(1.48, 2.95, 0.96,
+     ("#dfa0a7", "#f2c8c7", "#c66f7c"))
+rose(2.48, 2.12, 0.90,
+     ("#df9da2", "#efc2bd", "#b86370"))
+rose(0.25, 2.30, 0.82,
+     ("#e99aaa", "#f7c7cf", "#bd667a"))
+
+# Soft ground shadow behind the bouquet.
+ax.add_patch(Ellipse((0, -4.48), 4.7, 0.48,
+                     facecolor="#705b4d", edgecolor="none",
+                     alpha=0.10, zorder=16))
+
+# Brown kraft backing and cream front wrap.
+back_wrap = Polygon(
+    [(-3.55, 0.15), (3.55, 0.15), (1.72, -4.55), (-1.72, -4.55)],
+    closed=True, facecolor="#bda58f", edgecolor="#9e8873",
+    linewidth=1.2, zorder=17,
+)
+ax.add_patch(back_wrap)
+
+front_wrap = Polygon(
+    [(-2.92, 0.02), (2.92, 0.02), (1.38, -4.38), (-1.38, -4.38)],
+    closed=True, facecolor="#ead3c6", edgecolor="#bd9e93",
+    linewidth=1.1, zorder=18,
+)
+ax.add_patch(front_wrap)
+
+# Fine paper folds and an offset highlight.
+for x in (-2.20, -1.10, 0, 1.10, 2.20):
+    ax.plot([x, x * 0.48], [-0.20, -4.18],
+            color="#b9958a", linewidth=0.75,
+            alpha=0.65, zorder=19)
+ax.plot([-2.70, -1.30], [-0.05, -4.15],
+        color="#fff8ef", linewidth=2.0, alpha=0.28, zorder=19)
+
+# Satin ribbon and bow.
+ribbon = Polygon(
+    [(-1.18, -2.15), (1.18, -2.15),
+     (1.00, -2.62), (-1.00, -2.62)],
+    closed=True, facecolor="#ad5b72", edgecolor="#8e4659",
+    linewidth=0.8, zorder=20,
+)
+ax.add_patch(ribbon)
+
+curved_polygon(-0.48, -2.10, 1.10, 0.48, 25,
+               "#da99a9", "#b96f82", 1.0, 21)
+curved_polygon(0.48, -2.10, 1.10, 0.48, -25,
+               "#da99a9", "#b96f82", 1.0, 21)
+ax.add_patch(Ellipse((0, -2.12), 0.50, 0.36,
+                     facecolor="#9f4d67", edgecolor="#7e3e55",
+                     linewidth=0.8, zorder=22))
+
+ax.text(0, -5.36, "a little bouquet of love",
+        ha="center", va="center", fontsize=15, family="serif",
+        style="italic", color="#9c6170")
+
+plt.savefig("aesthetic_bouquet.png", dpi=300, bbox_inches="tight",
+            facecolor=fig.get_facecolor())
+plt.show()
